@@ -1,74 +1,127 @@
 # PhishGuard — Hybrid Phishing URL Detection & Risk Analysis
 
-PhishGuard analyses a URL **as a string** (it never visits, resolves or executes it) and returns
-**LOW RISK / SUSPICIOUS / HIGH RISK** with a 0–100 score and plain-language reasons. It combines a
-RandomForest classifier with a rule engine, exposed through a FastAPI service and a dark
-"threat detection console" Streamlit dashboard.
+PhishGuard is an application that analyzes URLs **as strings** without visiting, resolving, or executing them. It evaluates the structure and characteristics of a URL and classifies it as **LOW RISK, SUSPICIOUS, or HIGH RISK**, along with a 0–100 risk score and human-readable explanations.
 
+The system combines a **Random Forest machine-learning classifier** with a **rule-based security engine** to provide both predictive analysis and interpretable security indicators. The analysis is exposed through a **FastAPI REST API** and presented through a clean, dark sage-themed **Streamlit web app** that opens a dedicated results page after each scan.
+
+### Key Features
+
+* Hybrid ML + rule-based phishing URL detection
+* 28 lexical and structural URL features
+* Random Forest classification
+* 0–100 hybrid risk scoring
+* Explainable threat indicators and security reasons
+* ML confidence and local feature drivers
+* Suspicious keyword and domain analysis
+* IP-based domain and subdomain detection
+* URL shortener and punycode detection
+* Suspicious TLD and unusual port detection
+* Brand impersonation detection
+* Domain and path entropy analysis
+* Interactive web app with a dedicated results page and risk gauge
+* Batch URL analysis through CSV files
+* Scan history and result visualization
+* JSON result export
+* FastAPI REST API
+
+### Detection Pipeline
+
+```text
+URL Input
+    ↓
+URL Validation & Parsing
+    ↓
+Feature Extraction
+    ↓
+┌─────────────────────┬─────────────────────┐
+│   Random Forest     │    Rule Engine      │
+│   ML Analysis       │    Security Rules   │
+└──────────┬──────────┴──────────┬──────────┘
+           ↓                     ↓
+      ML Risk Score        Rule Risk Score
+           └──────────┬──────────┘
+                      ↓
+              Hybrid Risk Score
+                      ↓
+        LOW / SUSPICIOUS / HIGH RISK
 ```
+
+### Risk Analysis
+
+PhishGuard combines machine-learning probability with rule-based security indicators to produce a final risk score.
+
+The analysis can identify signals such as:
+
+* Suspicious keywords such as `login`, `verify`, `account`, and `secure`
+* IP addresses used as domains
+* Excessive subdomains
+* Suspicious top-level domains
+* URL shorteners
+* Punycode and non-ASCII domains
+* Unusual ports
+* Excessive special characters
+* High domain or path entropy
+* Brand names appearing in unrelated domains
+* Suspicious URL structures
+
+Each detected indicator is presented with a severity and plain-language explanation.
+
+### Example
+
+```text
 HIGH RISK — 92/100
 
 Reasons:
-- Impersonates paypal on an unrelated domain
-- Suspicious keywords: login, verify, account, secure
-- Suspicious TLD ".tk"
-- Connection is not encrypted (HTTP)
+• Brand impersonation detected
+• Multiple suspicious keywords
+• Suspicious top-level domain
+• Connection uses HTTP instead of HTTPS
 ```
 
-> **Synthetic data notice:** the bundled dataset and model are **synthetic/demo**. The ~99 % hold-out
-> score reflects the generator's patterns, not real-world accuracy. See `data/DATASET_README.md`.
+### Technology Stack
 
-## Quick start (Windows)
-```bat
-setup_windows.bat        :: venv + install + train (once)
-run_dashboard.bat        :: http://localhost:8501
-run_api.bat              :: http://127.0.0.1:8000/docs
+**Backend:** Python, FastAPI, Pydantic
+**Machine Learning:** Scikit-learn, Random Forest, NumPy, Pandas
+**URL Analysis:** urllib.parse, tldextract
+**Frontend:** Streamlit
+**Visualization:** Plotly
+
+
+### Project Structure
+
+```text
+app/
+    FastAPI API, analysis engine, security rules and training
+
+feature_engineering/
+    URL feature extraction and detection configuration
+
+dashboard/
+    Streamlit interface, theme and visualizations
+
+models/
+    Trained Random Forest model and evaluation metrics
+
+data/
+    Dataset, generator and sample URLs
+
+docs/
+    Architecture and interview documentation
 ```
-Requires Python 3.11+.
 
-## Quick start (any OS)
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python train.py                                  # optional: model is already included
-streamlit run dashboard/streamlit_app.py
-uvicorn app.main:app --reload
-```
+### Security & Privacy
 
-## API
-```bash
-curl http://127.0.0.1:8000/health
-curl -X POST http://127.0.0.1:8000/analyze -H "Content-Type: application/json" \
-     -d '{"url": "http://paypal.secure-verify.tk/login"}'
-```
-Response fields: `risk_score`, `verdict`, `ml_prediction`, `ml_confidence` (0–1), `ml_phishing_probability`,
-`rule_score`, `score_breakdown`, `indicators[]`, `reasons[]`, `explanation`, `features{}`, `ml_drivers[]`.
-Invalid input (empty, too long, non-http scheme) returns HTTP 422.
+PhishGuard is designed around **safe URL-string analysis**.
 
-## How scoring works
-`risk = 0.6 × ML probability (0–100) + 0.4 × rule score (0–100)`; LOW < 35, SUSPICIOUS 35–64, HIGH ≥ 65.
-Weights, thresholds, keywords, TLDs and brands live in `feature_engineering/feature_config.json`.
-Features (28): lengths, dots/hyphens/digits, subdomains, HTTPS, IP host, `@`, keywords, special
-characters, query params, domain/path entropy, suspicious TLD, shortener, punycode, port, brand
-impersonation, and more.
+Submitted URLs are never opened, crawled, resolved, or executed. The application validates untrusted input, escapes URLs before displaying them, and protects CSV exports against spreadsheet formula injection.
 
-## Dashboard
-Scanner (threat meter, target analysis, threat cards, Plotly charts, feature table, JSON export),
-batch CSV scanner with download, session scan history, and a system tab with model metrics.
-Batch CSV: a `url` column, or one URL per line (`data/sample_batch.csv`).
+The current system performs lexical and structural analysis only. It does not currently use WHOIS data, DNS intelligence, TLS certificate information, reputation feeds, or webpage content.
 
-## Project layout
-```
-app/                 FastAPI, analyzer, rules, training
-feature_engineering/ extractor + feature_config.json
-dashboard/           Streamlit app, theme, charts
-models/              phishguard_rf.pkl, metrics.json
-data/                synthetic dataset + generator + sample batch CSV
-docs/  train.py
-```
-See `docs/architecture.md` and `docs/interview_questions.md`.
+### Dataset & Model
 
-## Safety & limitations
-* No network access to submitted URLs. URLs are HTML-escaped and never rendered as links; CSV exports neutralise formula injection.
-* Lexical analysis only — no WHOIS, certificates, reputation feeds or page content. Not a substitute for a production security product.
-* Load only pickles you trust. If the scikit-learn version differs, the model retrains automatically.
+The bundled dataset and trained model are **synthetic/demo data** intended to demonstrate the complete ML pipeline.
+
+The reported evaluation performance reflects patterns in the generated dataset and **should not be interpreted as real-world phishing detection accuracy**.
+
+For production-level evaluation, the system would require large real-world phishing and legitimate URL datasets, domain-disjoint validation, temporal evaluation, and continuous monitoring for model drift.
+
